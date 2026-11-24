@@ -11,6 +11,14 @@ publish.workspace = true
 u_rome_core.workspace = true
 thiserror.workspace = true
 log.workspace = true
+egui = "0.37"
+egui-wgpu = "0.37"
+glam = "0.34.3"
+bytemuck = { version = "1.25.2", features = ["derive"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts"] }
+env_logger = "0.11.12"
