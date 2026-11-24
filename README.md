@@ -43,20 +43,6 @@ server = ["server/*.lua", "server/*.js"]
 shared = ["shared/config.lua"]
 ```
 
-## Roadmap
-
-1. Core, build system, CI
-2. Server with Lua and JS runtimes and resource loading
-3. Network protocol and entity sync
-4. Client hooks into a PC port
-5. Player, vehicle and ped sync, freeroam
-6. Launcher, server browser, docs
-
-## Branches
-
-- `staging`: development
-- `main`: production
-
 ## Legal
 
 ROME doesn't ship game files, executables or copyrighted assets, and doesn't link to leaked or pirated material. Own the game.
