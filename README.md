@@ -10,244 +10,255 @@
 
 Unofficial concept. Strictly experimental. Not affiliated with Rockstar Games, Take-Two Interactive or Cfx.re.
 
-ROME is a multiplayer and modding framework for the GTA VI PC port. It follows the CitizenFX model used by FiveM and RedM: a dedicated server hosts resources, resources are streamed to clients, and scripts in Lua or JavaScript drive the game through natives, events and replicated state.
+ROME is a multiplayer and modding platform for the GTA VI PC port. The base model is the same as CitizenFX: a dedicated server hosts resources, clients stream them, and scripts drive the game through natives, events and replicated state. Most of what sits on top of that base is redesigned to fix what FiveM gets wrong.
 
 This README is the design spec. Nothing below is implemented yet.
 
 ## Status
 
-There is no playable GTA VI PC port yet. Work on the server, scripting runtimes, resource system and network protocol comes first, since none of it needs the game. The client attaches to a port through an adapter layer, so ROME is not tied to one port.
+There is no playable GTA VI PC port yet. Work on the server, runtimes, tooling and protocol comes first, since none of it needs a running game. The client attaches to a port through an adapter, so ROME is not tied to one port.
+
+## What FiveM gets wrong
+
+| Problem in FiveM | ROME |
+|---|---|
+| Every resource shares one script thread per side. One bad loop drops the server tick for everyone. | Server resources run in isolated VMs on a worker pool. Each resource has a CPU budget per tick. Going over the budget throttles the resource, then suspends it. |
+| Net events are untyped strings. Any client can fire `giveMoney` with whatever arguments it wants. | Every network call is declared in a typed interface. Arguments are validated, rate limited and permission checked before a handler runs. |
+| No return values over the network, so every framework ships its own callback library. | RPC is built in and returns a value: `await api.spawnVehicle(model)`. |
+| Lua is untyped, and JS has types only if you bring your own tooling. | Luau with strict typing, plus TypeScript compiled by the server. Types for natives, events and exports are generated. |
+| Database access needs a third-party resource (oxmysql). | Persistence is built in: embedded SQLite by default, Postgres optional, with per-resource migrations. |
+| Administration needs txAdmin as a separate wrapper. | A web admin panel and API are built in. |
+| resmon shows script CPU time only. Lua has no debugger. | A built-in profiler covers CPU, memory, bandwidth, entities and UI cost per resource. Luau has a DAP debugger, and TypeScript uses Chrome DevTools. |
+| Restarting a resource wipes its state. | Hot reload keeps persisted state and state bags. |
+| Asset streaming re-downloads whole files, and the cache breaks. | Assets are stored as content-addressed chunks. Clients download deltas only, and a CDN can serve them. |
+| No package manager. Frameworks fork and copy each other. | `rome add` with semver and a lockfile. |
+| Scripts can't be tested without a running game. | `rome test` runs resources against a headless mock world. |
+| Every NUI frame runs its own page, and HUDs push data every frame. | One shared CEF compositor. UI messages are batched per frame, and a native HUD layer handles high-frequency overlays. |
 
 ## Components
 
 | Component | Description |
 |---|---|
-| `rome-server` | Headless dedicated server for Windows and Linux. Hosts resources, owns game state and runs server scripts. |
-| `rome-client` | Injected into the game process. Runs client scripts, applies synced state and renders UI. |
-| `rome-launcher` | Checks the local game install, loads the client and handles server connect and disconnect. |
-| Adapters | One per supported PC port. Map ROME's game interface (tick, entities, natives, input, rendering) onto that port. |
+| `rome-server` | Dedicated server for Windows and Linux. World state, resources, persistence, admin panel. |
+| `rome-client` | Runs inside the game process. Client scripts, sync, UI. |
+| `rome-launcher` | Checks the local install, loads the client, connects to servers. |
+| `rome` CLI | Scaffolding, dev server with hot reload, build, test, package management. |
+| ROME Studio | Desktop tools: asset viewer, world viewer, map editor, native explorer, profiler. |
+| Adapters | One per supported PC port. They map ROME's game interface onto that port. |
 
-Core is C++20, built with CMake, with dependencies managed through vcpkg.
-
-## Server
-
-The server reads `server.cfg` on startup. It uses a FiveM-style command syntax.
-
-```cfg
-endpoint_add_tcp "0.0.0.0:30200"
-endpoint_add_udp "0.0.0.0:30200"
-
-sv_hostname "ROME dev server"
-sv_maxclients 64
-
-set rome_syncRate 30            # entity sync rate (Hz)
-set rome_cullingRadius 424.0    # entity scope distance (m)
-set rome_entityLockdown strict  # inactive | relaxed | strict
-
-add_ace group.admin command allow
-add_principal identifier.rome:1 group.admin
-
-ensure spawnmanager
-ensure freeroam
-```
-
-The server opens TCP and UDP on the same port:
-
-- **TCP (HTTP):** the connect handshake, resource file downloads and the public endpoints `/info.json` and `/players.json`.
-- **UDP:** game traffic, using ENet.
-
-Console commands: `start`, `stop`, `restart`, `ensure`, `refresh`, `status`, `kick`, `quit`.
-
-## Resources
-
-A resource is a folder with a `rome.toml` manifest. The server loads resources from `resources/`. A folder name in brackets (such as `resources/[core]/`) only groups resources and is not a resource itself.
-
-```toml
-[resource]
-name        = "freeroam"
-version     = "0.1.0"
-game        = "gta6"
-description = "Basic freeroam gamemode"
-
-[scripts]
-shared = ["shared/config.lua"]
-client = ["client/*.lua", "client/*.js"]
-server = ["server/*.lua"]
-
-[ui]
-page  = "ui/index.html"
-files = ["ui/**"]
-
-[files]
-client = ["data/*.json"]
-
-[dependencies]
-resources = ["spawnmanager"]
-```
-
-- **Runtimes:** chosen by file extension. `.lua` runs in Lua and `.js` runs in JavaScript.
-- **Globs:** supported in every file list.
-- **Load order:** shared scripts load first, then client or server scripts, in the order listed.
-- **Dependencies:** start before the resource that needs them. If one is missing, the resource does not start.
-- **Integrity:** client files are hashed and cached. Clients only re-download files whose hash has changed.
-- **Lifecycle events:** `onResourceStart`, `onResourceStop`, `onClientResourceStart` and `onClientResourceStop`.
+Written in Rust. The runtimes embed Luau (via `mlua`), V8 (via `rusty_v8`) and Wasmtime. Studio uses `wgpu`.
 
 ## Scripting
 
 ### Runtimes
 
-| Runtime | Client | Server |
-|---|---|---|
-| Lua | Lua 5.4 | Lua 5.4 |
-| JavaScript | V8 | Node.js 22 LTS |
-
-Each resource gets its own isolated environment per runtime. Resources do not share globals. They talk to each other through events, exports and state bags.
-
-The Lua runtime adds native `vector2`, `vector3`, `vector4` and `quat` types with arithmetic operators. It also adds backtick literals that hash to joaat at compile time, for example `` `adder` ``.
-
-### Threads
-
-Scripts run on a cooperative scheduler. There is no preemption, so a loop without `Wait` freezes its runtime.
-
-- **Client:** the scheduler runs once per game frame.
-- **Server:** the scheduler runs once per server tick.
-
-```lua
-CreateThread(function()
-    while true do
-        Wait(0) -- yield until next tick
-        -- per-frame logic
-    end
-end)
-```
-
-`SetTimeout(ms, fn)` schedules a one-shot callback.
-
-### Events
-
-| Function | Side | Description |
-|---|---|---|
-| `AddEventHandler(name, fn)` | both | Listen for an event |
-| `RegisterNetEvent(name)` | both | Allow an event to be received from the network |
-| `TriggerEvent(name, ...)` | both | Fire a local event |
-| `TriggerServerEvent(name, ...)` | client | Send to the server |
-| `TriggerClientEvent(name, target, ...)` | server | Send to one client, or `-1` for all |
-| `CancelEvent()` | both | Cancel the current event, where cancellable |
-
-- **Network registration:** a net event must be registered with `RegisterNetEvent` before it is handled. Unregistered net events are dropped.
-- **Sender:** in a server handler, `source` is the sending player's server ID.
-- **Payloads:** serialized with MessagePack. Supported types are nil, booleans, numbers, strings, tables or arrays, and vectors. Functions cannot be sent over the network.
-
-### Exports
-
-```lua
--- resource "bank"
-exports('getBalance', function(id) return balances[id] or 0 end)
-
--- any other resource
-local bal = exports.bank:getBalance(playerId)
-```
-
-Exports work across runtimes, so a Lua export can be called from JavaScript and the reverse.
-
-### State bags
-
-Key/value state that replicates attached to an entity, a player or the server.
-
-```lua
--- server
-Entity(vehicle).state:set('fuel', 62.5, true)  -- true = replicate to clients
-Player(src).state:set('job', 'mechanic', false) -- server-only
-GlobalState.weather = 'storm'
-
--- client
-local fuel = Entity(vehicle).state.fuel
-AddStateBagChangeHandler('fuel', nil, function(bagName, key, value) end)
-```
-
-Only the server can write state that replicates. Clients can write local state only, unless a resource explicitly allows client writes on a key.
-
-### Natives
-
-Game functions are exposed as natives, each identified by a 64-bit hash. ROME keeps its own native database in `natives/`. Code generation from that database produces:
-
-- Lua and JS bindings
-- TypeScript and LuaLS type definitions
-- documentation
-
-Each adapter maps the native hashes onto its port.
-
-```lua
-local ped = PlayerPedId()
-local coords = GetEntityCoords(ped)
-SetEntityHeading(ped, 90.0)
-
--- raw call by hash (placeholder hash)
-InvokeNative(0x0000000000000000, ped, 90.0)
-```
-
-Server natives are a separate set. They act on synced state, such as creating networked entities, setting routing buckets and reading player identifiers.
-
-### UI
-
-The `ui.page` in the manifest is rendered with embedded Chromium (CEF) on top of the game.
-
-| Call | Purpose |
+| Runtime | Use |
 |---|---|
-| `SendUIMessage(data)` | Sends a message from the script to the page. The page receives it as `message` events. |
-| `RegisterUICallback(name, fn)` | Handles a request from the page. The page sends it as a `fetch` to `https://<resource>/<name>`. |
-| `SetUIFocus(hasFocus, hasCursor)` | Moves keyboard and mouse focus between the game and the page. |
+| **Luau** | Default for gameplay scripts. Gradual typing, a fast interpreter, native codegen and a built-in sandbox. |
+| **TypeScript** | Runs on V8 on both sides. The server compiles TS when it starts the resource. npm dependencies are bundled at build time. |
+| **WASM** | Runs on Wasmtime. For heavy compute or any language that compiles to WASM (Rust, Zig, C, Go). |
+
+Every runtime sees the same API. Bindings come from one interface definition, so a Luau resource, a TS resource and a Rust/WASM resource can call each other with full types.
+
+Luau is based on Lua 5.1 with its own extensions, not Lua 5.4. Most FiveM Lua ports over with small changes. The biggest one is that Luau has no `goto`.
+
+### Interface definitions
+
+Each resource declares the calls it exposes in `api.ridl`. `rome build` turns this into:
+
+- Luau types
+- TypeScript types
+- WASM bindings
+- runtime validators
+
+```
+namespace freeroam
+
+rpc spawnVehicle(model: string<1..32>) -> NetId
+    from client
+    rate 2/s
+    ace "freeroam.spawn"
+
+event vehicleSpawned(owner: PlayerId, vehicle: NetId)
+    to clients
+
+export getSpawnCount(player: PlayerId) -> u32
+```
+
+- **`rpc`:** a request that returns a value.
+- **`event`:** fire-and-forget.
+- **`export`:** a call from another resource on the same side.
+
+Calls from a client are rejected unless they are declared `from client`. A call that fails validation never reaches its handler, and the failure is logged against the player.
 
 ### Example
 
-```lua
--- server/main.lua
-RegisterNetEvent('freeroam:spawnVehicle')
+```luau
+--!strict
+-- server/main.luau
+local api = require("@self/api")
+local Vehicle = require("@rome/vehicle")
 
-AddEventHandler('playerJoining', function()
-    print(('%s joined (%s)'):format(GetPlayerName(source), source))
+local spawned: { [PlayerId]: number } = {}
+
+api.spawnVehicle:handle(function(player, model)
+    local ped = player.ped
+    local veh = Vehicle.create(model, ped.position + vector.create(2, 0, 0), ped.heading)
+    veh.state.owner = player.id
+    spawned[player.id] = (spawned[player.id] or 0) + 1
+    api.vehicleSpawned:broadcast(player.id, veh.netId)
+    return veh.netId
 end)
 
-AddEventHandler('freeroam:spawnVehicle', function(model)
-    local src = source
-    if type(model) ~= 'string' then return end
-
-    local ped = GetPlayerPed(src)
-    local pos = GetEntityCoords(ped)
-    local veh = CreateVehicle(joaat(model), pos.x + 2.0, pos.y, pos.z, GetEntityHeading(ped), true, true)
-    Entity(veh).state:set('owner', src, true)
+api.getSpawnCount:handle(function(player)
+    return spawned[player] or 0
 end)
 ```
 
-```js
-// client/main.js
-RegisterCommand('car', (source, args) => {
-  emitNet('freeroam:spawnVehicle', args[0] ?? 'default_sedan');
-}, false);
+```ts
+// client/main.ts
+import { spawnVehicle } from "@self/api";
+import { commands, notify } from "rome";
+
+commands.register("car", async ([model = "default_sedan"]) => {
+  const netId = await spawnVehicle(model);
+  notify(`Spawned vehicle ${netId}`);
+});
 ```
 
-## Networking
+### Execution model
 
-- **Transport:** ENet over UDP. Channels are reliable-ordered (events, state bags), unreliable-sequenced (entity sync) and reliable-unordered (bulk data).
-- **Authority:** the server decides what exists. Clients simulate the entities they own, and the server checks and relays their updates.
-- **Ownership:** an entity is owned by the client best placed to simulate it, usually the closest player. Ownership migrates as players move. Scripts can pin ownership to a specific player or to the server.
-- **Scope:** a client only receives entities within `rome_cullingRadius` of its player, plus entities a script has marked as persistent.
-- **Routing buckets:** players and entities can be split into separate buckets on one server. Each bucket is its own world and does not see the others.
-- **Population:** ambient peds and traffic are on by default and can be turned off per bucket.
+- **Server isolation:** each server resource runs in its own VM.
+- **World access:** scripts read a snapshot of the world from the last tick. Writes go into a queue and are applied together at the tick boundary. This is how resources run in parallel without locks, and it makes each tick deterministic.
+- **Client natives:** these must run on the game thread, so client scripts run there under a per-frame budget. Pure compute can move to a worker with `task.worker`, which has no native access.
+- **Budgets:** enforced through each runtime's interrupt mechanism (Luau interrupts, V8 `TerminateExecution`, Wasmtime epochs). Defaults are 2 ms per tick on the server and 1 ms per frame on the client, configurable per resource.
+- **Scheduling:** there are no `Wait(0)` polling loops. Code subscribes to `onTick`, entity events, state changes or timers instead.
 
-## Security
+### Game API
 
-- **Untrusted clients:** the server never trusts the client. Every net event handler must validate its arguments.
-- **Entity creation:** `rome_entityLockdown` controls whether clients may create networked entities. `inactive` allows all, `relaxed` blocks client-created entities that no script owns, and `strict` allows server-created entities only.
-- **Permissions:** ACE permissions (`add_ace`, `add_principal`, `IsPlayerAceAllowed`) gate commands and resource access.
-- **Rate limits:** applied per client to net events and state bag writes.
+Generated object APIs (`Ped`, `Vehicle`, `Player`, `World`) wrap the natives. Raw natives are still available through `natives.<Name>(...)` and `natives.invoke(hash, ...)`. The native database in `natives/` is the single source for:
+
+- bindings
+- types
+- Studio's native explorer
+
+Natives are mapped per adapter, because GTA VI's functions are not GTA V's.
+
+### State
+
+- **State bags:** typed state that replicates, on entities, players and the server. Only the server writes state that replicates.
+- **`rome.persist`:** per-resource durable key/value storage that survives restarts and hot reloads.
+- **`rome.db`:** async SQL. SQLite is embedded by default, and Postgres can be set with `rome_db`. Migrations live in `migrations/`.
+
+## Resources
+
+```toml
+[resource]
+name    = "freeroam"
+version = "0.1.0"
+game    = "gta6"
+
+[scripts]
+shared = ["shared/**/*.luau"]
+client = ["client/main.ts"]
+server = ["server/main.luau", "server/physics.wasm"]
+
+[api]
+file = "api.ridl"
+
+[budget]
+server_ms = 2.0
+client_ms = 1.0
+
+[ui]
+page = "ui/index.html"
+
+[dependencies]
+spawnmanager = "^1.0"
+```
+
+| Command | Description |
+|---|---|
+| `rome new <name>` | Scaffold a resource |
+| `rome dev` | Local server with hot reload |
+| `rome build` | Compile TS, generate bindings from `api.ridl`, bundle |
+| `rome test` | Run tests against a headless mock world |
+| `rome add <pkg>` | Add a dependency (`rome.lock`) |
+| `rome publish` | Publish to a package registry |
+
+## Server
+
+```cfg
+endpoint "0.0.0.0:30200"        # QUIC (game + assets) and HTTP (info, admin)
+sv_hostname "ROME dev server"
+sv_maxclients 128
+
+set rome_db "sqlite://data/rome.db"
+set rome_cdnUrl ""               # optional external asset host
+set rome_entityLockdown strict   # inactive | relaxed | strict
+
+add_ace group.admin command allow
+add_principal identifier.rome:1 group.admin
+
+ensure freeroam
+```
+
+**Built-in endpoints:**
+
+| Endpoint | Purpose |
+|---|---|
+| `/info.json` | Server info, as in FiveM |
+| `/players.json` | Player list, as in FiveM |
+| `/admin` | Web admin panel |
+| `/api` | Admin API |
+| `/metrics` | Prometheus metrics |
+
+**Networking:**
+- **Transport:** QUIC, with encryption, multiplexed streams and unreliable datagrams for entity sync.
+- **Entity sync:** server-authoritative. The nearest client simulates an entity, and ownership migrates as players move. Clients only receive entities within their culling radius.
+- **Isolation:** routing buckets split players and entities into separate worlds on one server.
+- **Validation:** server-side sanity checks on movement, damage and entity creation.
+
+## ROME Studio
+
+Desktop tools that read from your own game install. No game data is ever bundled or uploaded.
+
+| Tool | Description |
+|---|---|
+| Asset Viewer | Browse RPF9 archives. Preview models, textures, audio and PSO data. Export models to glTF. |
+| World Viewer | Fly the map with streaming LODs. Connect to a dev server to see live entities, players, zones and routing buckets on top. |
+| Map Editor | Place props, build interiors and zones. Exports as a resource. |
+| Native Explorer | Search the native database, read docs and call natives live against a connected client. |
+| Profiler | Live per-resource CPU, memory, bandwidth and UI cost, with frame and tick timelines. |
+| Net Inspector | Watch RPCs, events and state bag changes as they happen, with validation failures highlighted. |
+| Console | REPL into any resource on the client or the server. |
+
+### Formats
+
+The `rome-formats` crate handles archive and asset decoding. It builds on the community's reverse-engineering work, and only uses code whose license is compatible:
+
+| Format | Source | License |
+|---|---|---|
+| BCPack textures | [bcpack-rs](https://github.com/Ahmet-Dedeler/bcpack-rs) | MIT / Apache-2.0 |
+| PSO / PSIN data, animations | [rage9-re](https://github.com/Ahmet-Dedeler/rage9-re) | MIT / Apache-2.0 |
+| RPF9 archives | Clean-room, from public format notes | |
+| AWC audio | Clean-room | |
+
+GPL-3.0 projects (SixNG, VIctory) and all-rights-reserved projects (PercyStar) are references only and are not used as code dependencies. The [awesome-gta6-reverse-engineering](https://github.com/Ahmet-Dedeler/awesome-gta6-reverse-engineering) list tracks the wider tooling scene.
 
 ## Differences from FiveM
 
-- **Runtimes:** Lua and JavaScript only. There is no C# runtime.
-- **Manifest:** TOML (`rome.toml`) instead of `fxmanifest.lua`.
-- **Game access:** goes through adapters, because there is no single official PC executable to target.
-- **APIs:** event, export and state bag APIs mirror FiveM's on purpose, so porting resources is mostly mechanical. Natives will differ, because GTA VI's functions are not GTA V's.
+| | FiveM | ROME |
+|---|---|---|
+| Runtimes | Lua 5.4, JS, C# | Luau, TypeScript, WASM |
+| Network API | Untyped string events | Typed RPC, events and exports from `api.ridl` |
+| Threading | Shared scheduler per side | Isolated VMs, worker pool, per-resource budgets |
+| Manifest | `fxmanifest.lua` | `rome.toml` |
+| Database | Third-party | Built in |
+| Admin | txAdmin | Built in |
+| Packages | None | `rome add`, semver, lockfile |
+| Transport | ENet + HTTP | QUIC + HTTP |
+| Tooling | CodeWalker (community) | ROME Studio |
 
 ## Legal
 
