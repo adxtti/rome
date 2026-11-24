@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/rome-logo-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/rome-logo-light.svg">
+    <img alt="ROME" src="assets/rome-logo-light.svg" width="420">
+  </picture>
+</p>
+
 # ROME (Rockstar Online Modding Engine)
 
 Unofficial concept. Strictly experimental. Not affiliated with Rockstar Games, Take-Two Interactive or Cfx.re.
