@@ -1,0 +1,23 @@
+[package]
+name = "u_rome_studio"
+description = "ROME Studio: asset viewer, world viewer and modding tools for your own GTA VI install."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "u_rome_studio"
+path = "src/main.rs"
+
+[dependencies]
+u_rome_core.workspace = true
+anyhow.workspace = true
+log.workspace = true
+env_logger = "0.11.12"
+eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "wgpu", "glow", "persistence"] }
+egui_dock = "0.22.0"
+
+[lints]
+workspace = true

@@ -1,0 +1,16 @@
+[package]
+name = "u_rome_texture"
+description = "TTPF / RDS5 / ETPF texture stores: chunk tables, AMD Gfx10 detiling, BCPack and BCn decoding."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+u_rome_core.workspace = true
+thiserror.workspace = true
+log.workspace = true
+
+[lints]
+workspace = true

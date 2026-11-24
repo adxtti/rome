@@ -23,3 +23,21 @@ dist/
 *.rpf
 *.exe
 *.dll
+
+# Rust
+target/
+
+# Local indexes and caches
+*.db
+*.db-wal
+*.db-shm
+.u_rome/
+
+# Game data: never commit
+*.ttpf
+*.awc
+*.bk2
+
+# Local agent instructions: never commit
+CLAUDE.md
+.claude/

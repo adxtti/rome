@@ -338,6 +338,21 @@ Code is only taken from MIT or Apache projects. Some projects are used for refer
 
 The [awesome-gta6-reverse-engineering](https://github.com/Ahmet-Dedeler/awesome-gta6-reverse-engineering) list tracks the wider tooling scene.
 
+## Building
+
+Requires Rust 1.100 (pinned in `rust-toolchain.toml`).
+
+```sh
+cargo run -p u_rome_studio --release   # ROME Studio
+cargo run -p u_rome_cli -- --help      # rome CLI
+```
+
+Windows x64 and ARM64 builds of Studio and the CLI are attached to every CI run on `staging` and `main`.
+
+## License
+
+Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option. Port adapters will be licensed separately to match the port they target.
+
 ## Legal
 
 ROME doesn't ship game files, executables or copyrighted assets, and doesn't link to leaked or pirated material. Own the game.
