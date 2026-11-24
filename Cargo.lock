@@ -1900,6 +1900,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ogg"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdab8dcd8d4052eaacaf8fb07a3ccd9a6e26efadb42878a413c68fc4af1dee2b"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1910,6 +1919,15 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+
+[[package]]
+name = "opus-decoder"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15ae32c275dabb0cd2c863460bf349e9abc3568ba2abf0f9eb7b7d2edeeed07e"
+dependencies = [
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "orbclient"
@@ -2678,6 +2696,8 @@ name = "u_rome_audio"
 version = "0.1.0"
 dependencies = [
  "log",
+ "ogg",
+ "opus-decoder",
  "thiserror 2.0.21",
  "u_rome_core",
 ]
