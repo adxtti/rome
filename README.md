@@ -225,9 +225,8 @@ rome/
 
 | Branch | Purpose |
 |---|---|
-| `main` | Default branch for active development |
-| `staging` | Integration and testing before release |
-| `prod` | Stable releases only |
+| `staging` | Active development, integration and testing |
+| `main` | Production: stable code, promoted from `staging` |
 
 ---
 
