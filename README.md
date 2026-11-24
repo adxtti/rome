@@ -25,15 +25,15 @@ There is no playable GTA VI PC port yet. Work on the server, runtimes, tooling a
 | Component | Description |
 |---|---|
 | `u_rome::server` | Dedicated server for Windows and Linux. World state, resources, persistence, admin panel. |
-| `u_rome::client` | Runs inside the game process. Client scripts, sync, UI. |
+| `u_rome::client` | Loaded into the port's process through an adapter. Client scripts, sync, UI. |
 | `u_rome::launcher` | Checks the local install, loads the client, connects to servers. |
 | `u_rome::cli` | The `rome` command: scaffolding, dev server with hot reload, build, test, package management. |
 | `u_rome::studio` | Desktop tools: asset viewer, world viewer, map editor, native explorer, profiler. |
 | `u_rome::formats` | Archive and asset decoding shared by Studio, the CLI and the server. |
 | `u_rome::natives` | Native database, per-build hash maps and binding generation. |
-| `u_rome::adapter::<port>` | One per supported PC port. Maps ROME's game interface onto that port. |
+| `u_rome::adapter::<port>` | One per supported PC port. Plugs into the port's import routing and talks to ROME over a C ABI. See [Adapters](#adapters). |
 
-Written in Rust. The runtimes embed Luau (via `mlua`), V8 (via `rusty_v8`) and Wasmtime. Studio uses `wgpu`.
+Written in Rust. The runtimes embed Luau (via `mlua`), V8 (via `rusty_v8`) and Wasmtime. Studio uses `egui` and `wgpu`.
 
 ## GTA VI internals
 
@@ -64,6 +64,36 @@ This is what public reverse-engineering projects have found so far, and what ROM
 - **Native database:** `u_rome::natives` is built up from decompiled listings. Every call site gives a hash, plus argument and return counts if the format matches GTA V's. The community fills in names and signatures, as it did for GTA V's NativeDB.
 - **Changing hashes:** if hashes change between game builds, the adapter applies a per-build crossmap, as FiveM does for GTA V.
 - **Parser schemas:** once a port runs, a dumper for GTA VI exports parser schemas in the rage-parser-dumps JSON format. From those, `rome build` generates typed game data for Luau and TS, such as vehicle handling and weapon stats. Studio also uses them to show data files with real field names instead of hashes.
+
+## Adapters
+
+### How the ports run the game
+
+The leading ports, [XCL](https://github.com/xcl-dev/xcl) and [VIctory](https://github.com/Marvisak/VIctory), do not emulate the CPU:
+
+- **Loading:** a PE loader maps the Xbox executable, and its x64 code runs natively.
+- **Console APIs:** reimplemented in place. The port's import routing sends each import to one of three handlers: its own HLE module, the host OS, or a stub.
+- **GPU:** shaders are the only code that gets recompiled, from RDNA2 to HLSL to DXIL.
+- **Files:** console drive paths (`GAME:`, `S:`, `T:`) are redirected to folders on the PC. XCL writes changes to an overlay and never touches the game folder.
+- **Network:** VIctory is offline by design. XCL forwards networking to Xbox services that no longer answer.
+
+Neither port has a plugin or mod API yet. VIctory keeps game-specific hooks in one crate, `victory-game`. Everything else in it is generic.
+
+### What an adapter does
+
+An adapter is a module registered in the port's import routing. It is not a DLL injected the way FiveM does it. It provides ROME's game interface:
+
+| Interface | Hook point |
+|---|---|
+| Tick | The game's main loop. Drives the client scheduler once per frame. |
+| Natives | Handler lookup by hash in the native registration table. |
+| Entities | Entity pools and the game's network object layer, for sync. |
+| Files | The port's drive redirection. Streamed resources are mounted as an overlay. |
+| Input | The port's GameInput layer. |
+| Rendering | Frame present (PresentX). UI and overlays draw here. |
+| Network | None from the port. ROME brings its own QUIC transport. |
+
+Both ports are GPL (XCL is GPL-2.0-only, VIctory is GPL-3.0-or-later), so each adapter is its own GPL crate. Adapters talk to ROME through a stable C ABI. That keeps the core independent of any one port's license.
 
 ## Scripting
 
@@ -213,6 +243,7 @@ sv_maxclients 128
 set rome_db "sqlite://data/rome.db"
 set rome_cdnUrl ""               # optional external asset host
 set rome_entityLockdown strict   # inactive | relaxed | strict
+set rome_gameData ""             # optional path to your own game install, enables world validation
 
 add_ace group.admin command allow
 add_principal identifier.rome:1 group.admin
@@ -236,6 +267,16 @@ ensure freeroam
 - **Isolation:** routing buckets split players and entities into separate worlds on one server.
 - **Validation:** server-side sanity checks on movement, damage and entity creation.
 
+**World data:**
+
+With `rome_gameData` set, the server loads collision and navmesh data from the operator's own install. FiveM servers have no world geometry. ROME servers can use it to:
+
+- check player movement against real ground and walls
+- raycast line of sight on hit claims
+- pathfind server-controlled NPCs on the navmesh
+
+Collision is stored as quantised BVH trees with named surface materials. Navmesh comes in 128 m tiles, with road surfaces flagged. Both are documented in [GTA6-Asset-Info](https://github.com/TrinitronClient/GTA6-Asset-Info).
+
 ## ROME Studio
 
 Desktop tools that read from your own game install. No game data is ever bundled or uploaded.
@@ -250,20 +291,54 @@ Desktop tools that read from your own game install. No game data is ever bundled
 | Net Inspector | Watch RPCs, events and state bag changes as they happen, with validation failures highlighted. |
 | Console | REPL into any resource on the client or the server. |
 
+The UI is built with `egui` and `egui_dock`, and renders through `wgpu`.
+
+The World Viewer has to handle a lot of data:
+- 2.25M placed entities across about 30,800 map files
+- 24.9M prop instances
+- 219M grass instances
+
+It streams this content in LOD rings around the camera, batched by the game's 60 m, 512 m and 1024 m sector grids. Props and grass are drawn with GPU instancing. The game's shaders exist only as RDNA2 machine code, so Studio has its own material renderer, built on the 344 named game shaders and their parameters.
+
+### Plugins
+
+Studio plugins are WASM modules with capability-based access. The design follows [openrage](https://github.com/openragee/openrage):
+
+- **Capabilities:** a plugin declares what it needs in `plugin.json`, such as `read_archive`, `edit_document`, `add_panel` or `draw_overlay`.
+- **Enforcement:** an import the plugin did not declare fails at load time.
+- **Consent:** the user approves a plugin before its first run, and again whenever its manifest changes.
+- **Limits:** execution is fuel-limited, and shipped game files are never written.
+
 ### Formats
 
-`u_rome::formats` handles archive and asset decoding. It builds on the community's reverse-engineering work, and only uses code whose license is compatible:
+`u_rome::formats` handles archive and asset decoding.
 
-| Format | Source | License |
-|---|---|---|
-| BCPack textures | [bcpack-rs](https://github.com/Ahmet-Dedeler/bcpack-rs) | MIT / Apache-2.0 |
-| PSO / PSIN data, animations | [rage9-re](https://github.com/Ahmet-Dedeler/rage9-re) | MIT / Apache-2.0 |
-| RPF9 archives | Clean-room, from public format notes | |
-| AWC audio | Clean-room | |
-| Parser schemas | [rage-parser-dumps](https://github.com/alexguirre/rage-parser-dumps) JSON format. No GTA VI dump yet. | MIT |
-| Hash names | [Rage Tools VI](https://github.com/lynxnathan/rage-tools-vi) registry | MIT |
+**How archives are read.** The RPF9 table of contents is encrypted, and no public key exists. Like every current tool, ROME reads archives in two steps:
 
-GPL-3.0 projects (SixNG, VIctory) and all-rights-reserved projects (PercyStar) are references only and are not used as code dependencies. The [awesome-gta6-reverse-engineering](https://github.com/Ahmet-Dedeler/awesome-gta6-reverse-engineering) list tracks the wider tooling scene.
+1. **Scan.** Find zlib streams at 16-byte steps, verify them with Adler-32, and join 64 KiB chunks into whole files.
+2. **Index.** Store a persistent, content-addressed index of everything found. Archives are memory-mapped.
+
+File names are recovered from paths found inside the data and from known JOAAT name lists. The first index build is a one-time cost.
+
+| Format | Approach | Source | License |
+|---|---|---|---|
+| RPF9 archives | Scan and index, clean-room | [rage-tools-vi](https://github.com/lynxnathan/rage-tools-vi), [0x52504639](https://github.com/SentinelInteractive/0x52504639) notes | MIT |
+| TTPF / RDS5 textures | Chunk table (raw, zlib, BCPack), AMD Gfx10 detiling | [ttpf-studio](https://github.com/woreksami/ttpf-studio) notes | MIT |
+| BCPack | Library. Only BC1 is reliable, and BC3 to BC7 are unfinished, so output is provisional. Raw or zlib mips are preferred when present. | [bcpack-rs](https://github.com/Ahmet-Dedeler/bcpack-rs) | MIT / Apache-2.0 |
+| Models | Clean-room: quantised positions, meshlet indices, LOD groups, skeletons | [GTA6-Asset-Info](https://github.com/TrinitronClient/GTA6-Asset-Info) docs | Docs only |
+| Map placements, collision, navmesh | Clean-room | [GTA6-Asset-Info](https://github.com/TrinitronClient/GTA6-Asset-Info) docs | Docs only |
+| PSO / PSIN data, animations | Library | [rage9-re](https://github.com/Ahmet-Dedeler/rage9-re) | MIT / Apache-2.0 |
+| AWC audio | Clean-room. Opus packets are wrapped in Ogg without re-encoding. | [AWC extractor](https://github.com/Albotterin/AWC_from_RPF9_Extractor) notes | MIT |
+| Bink 2 video | Not supported. No open decoder exists. | | |
+| Parser schemas | [rage-parser-dumps](https://github.com/alexguirre/rage-parser-dumps) JSON format. No GTA VI dump yet. | rage-parser-dumps | MIT |
+| Hash names | Registry | [rage-tools-vi](https://github.com/lynxnathan/rage-tools-vi) | MIT |
+
+Code is only taken from MIT or Apache projects. Some projects are used for reference only:
+- **Copyleft:** SixNG, VIctory, XCL and openrage's `or-media`.
+- **All rights reserved:** PercyStar.
+- **No license:** 6stars and rpf9-explorer.
+
+The [awesome-gta6-reverse-engineering](https://github.com/Ahmet-Dedeler/awesome-gta6-reverse-engineering) list tracks the wider tooling scene.
 
 ## Differences from FiveM
 
