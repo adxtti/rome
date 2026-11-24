@@ -10,7 +10,9 @@
 
 Unofficial concept. Strictly experimental. Not affiliated with Rockstar Games, Take-Two Interactive or Cfx.re.
 
-ROME is a multiplayer and modding platform for the GTA VI PC port. The base model is the same as CitizenFX: a dedicated server hosts resources, clients stream them, and scripts drive the game through natives, events and replicated state. Most of what sits on top of that base is redesigned to fix what FiveM gets wrong.
+ROME is a multiplayer and modding platform for the GTA VI PC port. The base model is the same as CitizenFX: a dedicated server hosts resources, clients stream them, and scripts drive the game through natives, events and replicated state. Most of what sits on top of that base is redesigned.
+
+Components are namespaced `u_rome::` (unofficial ROME).
 
 This README is the design spec. Nothing below is implemented yet.
 
@@ -18,35 +20,50 @@ This README is the design spec. Nothing below is implemented yet.
 
 There is no playable GTA VI PC port yet. Work on the server, runtimes, tooling and protocol comes first, since none of it needs a running game. The client attaches to a port through an adapter, so ROME is not tied to one port.
 
-## What FiveM gets wrong
-
-| Problem in FiveM | ROME |
-|---|---|
-| Every resource shares one script thread per side. One bad loop drops the server tick for everyone. | Server resources run in isolated VMs on a worker pool. Each resource has a CPU budget per tick. Going over the budget throttles the resource, then suspends it. |
-| Net events are untyped strings. Any client can fire `giveMoney` with whatever arguments it wants. | Every network call is declared in a typed interface. Arguments are validated, rate limited and permission checked before a handler runs. |
-| No return values over the network, so every framework ships its own callback library. | RPC is built in and returns a value: `await api.spawnVehicle(model)`. |
-| Lua is untyped, and JS has types only if you bring your own tooling. | Luau with strict typing, plus TypeScript compiled by the server. Types for natives, events and exports are generated. |
-| Database access needs a third-party resource (oxmysql). | Persistence is built in: embedded SQLite by default, Postgres optional, with per-resource migrations. |
-| Administration needs txAdmin as a separate wrapper. | A web admin panel and API are built in. |
-| resmon shows script CPU time only. Lua has no debugger. | A built-in profiler covers CPU, memory, bandwidth, entities and UI cost per resource. Luau has a DAP debugger, and TypeScript uses Chrome DevTools. |
-| Restarting a resource wipes its state. | Hot reload keeps persisted state and state bags. |
-| Asset streaming re-downloads whole files, and the cache breaks. | Assets are stored as content-addressed chunks. Clients download deltas only, and a CDN can serve them. |
-| No package manager. Frameworks fork and copy each other. | `rome add` with semver and a lockfile. |
-| Scripts can't be tested without a running game. | `rome test` runs resources against a headless mock world. |
-| Every NUI frame runs its own page, and HUDs push data every frame. | One shared CEF compositor. UI messages are batched per frame, and a native HUD layer handles high-frequency overlays. |
-
 ## Components
 
 | Component | Description |
 |---|---|
-| `rome-server` | Dedicated server for Windows and Linux. World state, resources, persistence, admin panel. |
-| `rome-client` | Runs inside the game process. Client scripts, sync, UI. |
-| `rome-launcher` | Checks the local install, loads the client, connects to servers. |
-| `rome` CLI | Scaffolding, dev server with hot reload, build, test, package management. |
-| ROME Studio | Desktop tools: asset viewer, world viewer, map editor, native explorer, profiler. |
-| Adapters | One per supported PC port. They map ROME's game interface onto that port. |
+| `u_rome::server` | Dedicated server for Windows and Linux. World state, resources, persistence, admin panel. |
+| `u_rome::client` | Runs inside the game process. Client scripts, sync, UI. |
+| `u_rome::launcher` | Checks the local install, loads the client, connects to servers. |
+| `u_rome::cli` | The `rome` command: scaffolding, dev server with hot reload, build, test, package management. |
+| `u_rome::studio` | Desktop tools: asset viewer, world viewer, map editor, native explorer, profiler. |
+| `u_rome::formats` | Archive and asset decoding shared by Studio, the CLI and the server. |
+| `u_rome::natives` | Native database, per-build hash maps and binding generation. |
+| `u_rome::adapter::<port>` | One per supported PC port. Maps ROME's game interface onto that port. |
 
 Written in Rust. The runtimes embed Luau (via `mlua`), V8 (via `rusty_v8`) and Wasmtime. Studio uses `wgpu`.
+
+## GTA VI internals
+
+This is what public reverse-engineering projects have found so far, and what ROME assumes from it. None of it is confirmed against official documentation.
+
+### Scripts
+
+- **Script VM:** game logic runs as compiled script programs, the same model as GTA V and RDR2. [PercyStar](https://github.com/rpatty-dev/PercyStar) finds `scrProgram` anchors in the executable. `scrProgram` is the RAGE class for a compiled script.
+- **Decompiled listings:** [openrage](https://github.com/openragee/openrage/pull/10) lifts decompiled GTA VI script listings to readable source. That is 746 listings and 572,370 functions. The listings show GTA V's layout: globals, statics, functions, and native calls identified by hash.
+- **Bytecode:** compiled scripts can't be read directly yet, because the archive table that holds them is encrypted.
+- **Natives:** no native table, native names or opcode table for GTA VI has been published.
+
+### Data
+
+- **`script.rpf`:** holds data, not bytecode. That data is 1,012 PSIN documents (PSO v122). The chunk chain is `PSIN, LSCH, LENM, LSNS, LGID, LRSC, CHKS` ([rage9-re](https://github.com/Ahmet-Dedeler/rage9-re/blob/master/docs/SCRIPT_FORMAT.md)).
+- **Hashing:** names in data files are 32-bit JOAAT hashes, and a 64-bit hash pool also exists. Projects disagree on whether names are lowercased before hashing.
+- **Name registry:** [Rage Tools VI](https://github.com/lynxnathan/rage-tools-vi) keeps a registry of about 37,000 hash-to-name pairs.
+
+### Parser metadata
+
+- **What it is:** RAGE registers every data structure with its parser (`parManager`), including fields, offsets, types and defaults.
+- **Prior work:** [rage-parser-dumps](https://github.com/alexguirre/rage-parser-dumps) pulls this out of GTA IV, GTA V and RDR at runtime by injecting a DLL and pattern-scanning for `parManager`.
+- **GTA VI:** there is no GTA VI dump yet. Making one needs a running build and new scan patterns.
+
+### What ROME assumes
+
+- **Native calls:** natives are called the way FiveM calls them in GTA V. The adapter looks up the handler by hash in the game's native registration table and calls it with an argument array and a return slot. Scripts see `natives.invoke(hash, ...)`.
+- **Native database:** `u_rome::natives` is built up from decompiled listings. Every call site gives a hash, plus argument and return counts if the format matches GTA V's. The community fills in names and signatures, as it did for GTA V's NativeDB.
+- **Changing hashes:** if hashes change between game builds, the adapter applies a per-build crossmap, as FiveM does for GTA V.
+- **Parser schemas:** once a port runs, a dumper for GTA VI exports parser schemas in the rage-parser-dumps JSON format. From those, `rome build` generates typed game data for Luau and TS, such as vehicle handling and weapon stats. Studio also uses them to show data files with real field names instead of hashes.
 
 ## Scripting
 
@@ -235,7 +252,7 @@ Desktop tools that read from your own game install. No game data is ever bundled
 
 ### Formats
 
-The `rome-formats` crate handles archive and asset decoding. It builds on the community's reverse-engineering work, and only uses code whose license is compatible:
+`u_rome::formats` handles archive and asset decoding. It builds on the community's reverse-engineering work, and only uses code whose license is compatible:
 
 | Format | Source | License |
 |---|---|---|
@@ -243,6 +260,8 @@ The `rome-formats` crate handles archive and asset decoding. It builds on the co
 | PSO / PSIN data, animations | [rage9-re](https://github.com/Ahmet-Dedeler/rage9-re) | MIT / Apache-2.0 |
 | RPF9 archives | Clean-room, from public format notes | |
 | AWC audio | Clean-room | |
+| Parser schemas | [rage-parser-dumps](https://github.com/alexguirre/rage-parser-dumps) JSON format. No GTA VI dump yet. | MIT |
+| Hash names | [Rage Tools VI](https://github.com/lynxnathan/rage-tools-vi) registry | MIT |
 
 GPL-3.0 projects (SixNG, VIctory) and all-rights-reserved projects (PercyStar) are references only and are not used as code dependencies. The [awesome-gta6-reverse-engineering](https://github.com/Ahmet-Dedeler/awesome-gta6-reverse-engineering) list tracks the wider tooling scene.
 
