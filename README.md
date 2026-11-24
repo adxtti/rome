@@ -2,7 +2,7 @@
 
 Unofficial concept. Strictly experimental. Not affiliated with Rockstar Games, Take-Two Interactive or Cfx.re.
 
-ROME is a multiplayer and modding framework for the GTA VI PC port. If you've used FiveM, you already know how this works: dedicated servers, resources, Lua/JS/C# scripting, natives, events, state bags. Same idea, built for GTA VI.
+ROME is a multiplayer and modding framework for the GTA VI PC port. If you've used FiveM, you already know how this works: dedicated servers, resources, Lua and JS scripting, natives, events, state bags. Same idea, built for GTA VI.
 
 ## Status
 
@@ -10,11 +10,10 @@ Early. There's no playable PC port of GTA VI yet, so we're building the parts th
 
 ## Scripting
 
-Three runtimes, same as FiveM:
+Two runtimes:
 
 - Lua 5.4
 - JavaScript (V8 on the client, Node on the server)
-- C# (.NET)
 
 ```lua
 AddEventHandler('playerJoining', function()
@@ -47,7 +46,7 @@ shared = ["shared/config.lua"]
 ## Roadmap
 
 1. Core, build system, CI
-2. Server with Lua/JS/C# runtimes and resource loading
+2. Server with Lua and JS runtimes and resource loading
 3. Network protocol and entity sync
 4. Client hooks into a PC port
 5. Player, vehicle and ped sync, freeroam
