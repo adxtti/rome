@@ -2704,6 +2704,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "u_rome_testdata"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "u_rome_core",
+]
+
+[[package]]
 name = "u_rome_texture"
 version = "0.1.0"
 dependencies = [
