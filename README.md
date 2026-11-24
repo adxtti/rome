@@ -14,8 +14,6 @@ ROME is a multiplayer and modding platform for the GTA VI PC port. The base mode
 
 Components are namespaced `u_rome::` (unofficial ROME).
 
-This README is the design spec. Nothing below is implemented yet.
-
 ## Status
 
 There is no playable GTA VI PC port yet. Work on the server, runtimes, tooling and protocol comes first, since none of it needs a running game. The client attaches to a port through an adapter, so ROME is not tied to one port.
@@ -339,20 +337,6 @@ Code is only taken from MIT or Apache projects. Some projects are used for refer
 - **No license:** 6stars and rpf9-explorer.
 
 The [awesome-gta6-reverse-engineering](https://github.com/Ahmet-Dedeler/awesome-gta6-reverse-engineering) list tracks the wider tooling scene.
-
-## Differences from FiveM
-
-| | FiveM | ROME |
-|---|---|---|
-| Runtimes | Lua 5.4, JS, C# | Luau, TypeScript, WASM |
-| Network API | Untyped string events | Typed RPC, events and exports from `api.ridl` |
-| Threading | Shared scheduler per side | Isolated VMs, worker pool, per-resource budgets |
-| Manifest | `fxmanifest.lua` | `rome.toml` |
-| Database | Third-party | Built in |
-| Admin | txAdmin | Built in |
-| Packages | None | `rome add`, semver, lockfile |
-| Transport | ENet + HTTP | QUIC + HTTP |
-| Tooling | CodeWalker (community) | ROME Studio |
 
 ## Legal
 
