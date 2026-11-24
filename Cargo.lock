@@ -166,6 +166,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "bcdec_rs"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d521509f38a9ab0fce76656a0416161ee5d42c1eab6672b958391e2ac7a0e31"
+
+[[package]]
+name = "bcpack-rs"
+version = "0.2.0"
+source = "git+https://github.com/Ahmet-Dedeler/bcpack-rs?rev=b1c3099a3402de8b76c9263a828791bd8bc0c930#b1c3099a3402de8b76c9263a828791bd8bc0c930"
+dependencies = [
+ "flate2",
+ "png",
+ "serde_json",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2727,6 +2743,10 @@ dependencies = [
 name = "u_rome_texture"
 version = "0.1.0"
 dependencies = [
+ "bcdec_rs",
+ "bcpack-rs",
+ "flate2",
+ "image",
  "log",
  "thiserror 2.0.21",
  "u_rome_core",

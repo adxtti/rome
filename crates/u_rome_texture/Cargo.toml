@@ -11,6 +11,13 @@ publish.workspace = true
 u_rome_core.workspace = true
 thiserror.workspace = true
 log.workspace = true
+bcpack-rs = { git = "https://github.com/Ahmet-Dedeler/bcpack-rs", rev = "b1c3099a3402de8b76c9263a828791bd8bc0c930", version = "0.2.0", default-features = false }
+bcdec_rs = "0.2.1"
+flate2 = "1.1.11"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+bcpack-rs = { git = "https://github.com/Ahmet-Dedeler/bcpack-rs", rev = "b1c3099a3402de8b76c9263a828791bd8bc0c930", default-features = false, features = ["ttpf"] }
