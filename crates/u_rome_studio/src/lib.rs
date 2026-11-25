@@ -17,6 +17,7 @@
 pub mod app;
 pub mod backend;
 pub mod crash;
+pub mod decoders;
 pub mod diagnostics;
 pub mod hex;
 pub mod jobs;

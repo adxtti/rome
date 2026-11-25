@@ -64,6 +64,7 @@ impl PreviewRegistry {
         let mut r = Self::default();
         r.register(Arc::new(PlaceholderPreviewer));
         r.register(Arc::new(XmlTextPreviewer));
+        crate::decoders::register(&mut r);
         r
     }
 
@@ -305,15 +306,24 @@ mod tests {
     fn dispatch_by_kind() {
         let mut r = PreviewRegistry::with_builtin();
         assert_eq!(r.best(&entry(AssetKind::Xml)).unwrap().id(), "xml-text");
-        assert_eq!(
-            r.best(&entry(AssetKind::Audio)).unwrap().id(),
-            "placeholder"
-        );
+        assert_eq!(r.best(&entry(AssetKind::Audio)).unwrap().id(), "audio");
+        assert_eq!(r.best(&entry(AssetKind::Pso)).unwrap().id(), "pso");
+        assert_eq!(r.best(&entry(AssetKind::MetaResource)).unwrap().id(), "map");
+        // Unknown entries default to the summary; the model decoder is an
+        // opt-in alternative below it.
+        let unknown: Vec<_> = r
+            .candidates(&entry(AssetKind::Unknown))
+            .iter()
+            .map(|p| p.id())
+            .collect();
+        assert_eq!(unknown, vec!["placeholder", "model"]);
+        let before = r.len();
         r.register(Arc::new(Fake));
         let c = r.candidates(&entry(AssetKind::TextureTable));
         let ids: Vec<_> = c.iter().map(|p| p.id()).collect();
-        assert_eq!(ids, vec!["fake-texture", "placeholder"]);
-        assert_eq!(r.len(), 3);
+        assert!(ids.contains(&"fake-texture") && ids.contains(&"texture"));
+        assert_eq!(ids.last(), Some(&"placeholder"));
+        assert_eq!(r.len(), before + 1);
     }
 
     #[test]
