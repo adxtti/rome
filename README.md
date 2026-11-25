@@ -353,6 +353,11 @@ Windows x64 and ARM64 builds of Studio and the CLI are attached to every CI run 
 
 Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option. Port adapters will be licensed separately to match the port they target.
 
+### Credits
+
+- BCPack texture decoding and Gfx10 detiling build on [bcpack-rs](https://github.com/Ahmet-Dedeler/bcpack-rs) by Ahmet Dedeler (MIT OR Apache-2.0).
+- Opus decoding uses [opus-decoder](https://crates.io/crates/opus-decoder) (MIT OR Apache-2.0).
+
 ## Legal
 
 ROME doesn't ship game files, executables or copyrighted assets, and doesn't link to leaked or pirated material. Own the game.
