@@ -3241,6 +3241,9 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "u_rome_core",
+ "u_rome_index",
+ "u_rome_install",
+ "u_rome_testdata",
  "winresource",
 ]
 

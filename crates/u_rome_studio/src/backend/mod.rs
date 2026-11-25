@@ -6,6 +6,7 @@
 //! constructed by a [`BackendProvider`]; until then [`mock::MockBackend`]
 //! drives the whole UI with a synthetic install.
 
+pub mod index;
 pub mod mock;
 pub mod source;
 

@@ -29,7 +29,10 @@ const DOCK_KEY: &str = "dock_v1";
 /// provider before the mock; the first provider whose `accepts` returns true
 /// for the chosen folder is used.
 pub fn providers() -> Vec<Arc<dyn BackendProvider>> {
-    vec![Arc::new(MockProvider::default())]
+    vec![
+        Arc::new(crate::backend::index::IndexProvider::default()),
+        Arc::new(MockProvider::default()),
+    ]
 }
 
 /// Result of a quick sanity check on a chosen install folder.
