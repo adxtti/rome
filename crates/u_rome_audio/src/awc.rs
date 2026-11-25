@@ -1,9 +1,9 @@
 //! AWC (`ADAT`) bank parsing and Opus packet extraction.
 //!
 //! Format facts come from two sources, cited inline:
-//! - [FORMAT] Albotterin/AWC_from_RPF9_Extractor `docs/FORMAT.md` (MIT),
+//! - (FORMAT) Albotterin/AWC_from_RPF9_Extractor `docs/FORMAT.md` (MIT),
 //!   derived from GTA VI samples and vgmstream.
-//! - [VGM] vgmstream `src/meta/awc.c` and `awc_streamfile.h` (ISC-style
+//! - (VGM) vgmstream `src/meta/awc.c` and `awc_streamfile.h` (ISC-style
 //!   license), derived from GTA V / RDR / Max Payne 3 banks. Facts only; no
 //!   code was adapted.
 //!
@@ -18,7 +18,7 @@
 //!
 //! A stream that owns a 0x48 "music header" chunk describes a streamed bank:
 //! its 0x55 data chunk is split into fixed-size blocks that interleave
-//! several independent channel streams ([FORMAT] section 4).
+//! several independent channel streams ((FORMAT) section 4).
 
 use std::sync::Arc;
 
@@ -29,7 +29,7 @@ use crate::error::{AwcError, ReadCtx, Result};
 use crate::ogg::{DEFAULT_PRE_SKIP, OggOpusOptions, write_ogg_opus_with};
 use crate::opus::{OpusToc, opus_packet_samples};
 
-/// Chunk tags. [FORMAT] section 2, [VGM] `parse_awc_header`.
+/// Chunk tags. (FORMAT) section 2, (VGM) `parse_awc_header`.
 pub mod tag {
     /// Stream format / music header.
     pub const MUSIC_HEADER: u8 = 0x48;
@@ -49,18 +49,18 @@ pub mod tag {
     pub const MIDI: u8 = 0x68;
 }
 
-/// Size of one audio unit inside a block ([FORMAT] section 4, [VGM] AWC_FRAME_SIZE).
+/// Size of one audio unit inside a block ((FORMAT) section 4, (VGM) AWC_FRAME_SIZE).
 pub const UNIT_SIZE: usize = 0x800;
 
 /// Sanity limits for header-driven sizes.
-const MAX_STREAMS: u32 = 65_536; // [FORMAT] scanner accepts 1..=65536
-const MAX_MUSIC_CHANNELS: u32 = 32; // [VGM] AWC_MAX_MUSIC_CHANNELS
-const MAX_UNITS_PER_BLOCK: i32 = 65_535; // [VGM] AWC_MAX_ENTRIES
+const MAX_STREAMS: u32 = 65_536; // (FORMAT) scanner accepts 1..=65536
+const MAX_MUSIC_CHANNELS: u32 = 32; // (VGM) AWC_MAX_MUSIC_CHANNELS
+const MAX_UNITS_PER_BLOCK: i32 = 65_535; // (VGM) AWC_MAX_ENTRIES
 const MAX_BLOCK_SIZE: u32 = 64 << 20; // samples use 0x80000
 const MAX_EVENTS: usize = 1 << 20;
 const BLOCK_CHANNEL_HEADER: usize = 0x18;
 
-/// Header flag bits (low byte of the u16 at 0x06). [VGM]
+/// Header flag bits (low byte of the u16 at 0x06). (VGM)
 const FLAG_CHUNK_INDICES: u16 = 0x0001;
 const FLAG_ENCRYPTED: u16 = 0x0008;
 
@@ -90,8 +90,8 @@ impl RawStream {
 
 /// A 16-byte record from a 0xBD events chunk.
 ///
-/// Field meanings follow [FORMAT] section 7 (GTA VI samples): type hash,
-/// f32 value, time in samples at 48 kHz, flags. [VGM] instead describes the
+/// Field meanings follow (FORMAT) section 7 (GTA VI samples): type hash,
+/// f32 value, time in samples at 48 kHz, flags. (VGM) instead describes the
 /// record as type hash, params hash, timestamp in ms, flags. Both raw words
 /// are kept (`value_bits`), and `provisional` is set because the sources
 /// disagree.
@@ -103,9 +103,9 @@ pub struct AwcEvent {
     pub name: Option<&'static str>,
     /// Second word read as f32.
     pub value: f32,
-    /// Second word as raw bits (a params hash per [VGM]).
+    /// Second word as raw bits (a params hash per (VGM)).
     pub value_bits: u32,
-    /// Third word: samples at 48 kHz from stream start per [FORMAT].
+    /// Third word: samples at 48 kHz from stream start per (FORMAT).
     pub time: u32,
     pub flags: u32,
     pub provisional: bool,
@@ -118,7 +118,7 @@ impl AwcEvent {
     }
 }
 
-/// Event type names from [FORMAT] section 7 (guesses that hash to the type).
+/// Event type names from (FORMAT) section 7 (guesses that hash to the type).
 const EVENT_NAMES: [&str; 7] = ["beat", "trackid", "dj", "intro", "outro", "low", "high"];
 
 /// Resolve a known event type hash to its name.
@@ -147,11 +147,11 @@ pub struct StreamInfo {
     pub codec_id: u8,
     pub sample_rate: u32,
     /// Decoded channel count. For Opus music this comes from the stereo bit of
-    /// the first packet ([FORMAT] section 5); sfx streams are mono ([VGM]).
+    /// the first packet ((FORMAT) section 5); sfx streams are mono ((VGM)).
     pub channels: u16,
     /// Length in samples per channel (best effort, see `raw_sample_count`).
     pub sample_count: u64,
-    /// Sample count as stored in the header. [FORMAT] section 3 observes that
+    /// Sample count as stored in the header. (FORMAT) section 3 observes that
     /// for Opus music it counts interleaved samples (about 2x for stereo).
     pub raw_sample_count: u32,
     pub headroom: i16,
@@ -182,10 +182,10 @@ impl StreamInfo {
     }
 }
 
-/// Per-channel part of a block header ([FORMAT] section 4, [VGM] `read_awc_block`).
+/// Per-channel part of a block header ((FORMAT) section 4, (VGM) `read_awc_block`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockChannel {
-    /// Start entry (-1 in samples; inaccurate per [VGM]).
+    /// Start entry (-1 in samples; inaccurate per (VGM)).
     pub start_entry: i32,
     /// Number of 0x800-byte units for this channel in this block.
     pub units: u32,
@@ -277,7 +277,7 @@ impl AwcBank {
         self.flags
     }
 
-    /// Whether the encrypted-data flag is set ([VGM]: GTA V PC).
+    /// Whether the encrypted-data flag is set ((VGM): GTA V PC).
     pub fn is_encrypted(&self) -> bool {
         self.encrypted
     }
@@ -350,12 +350,12 @@ impl AwcBank {
 
         match version {
             1 => {}
-            // [VGM] comment: "00=rarely, 01=common".
+            // (VGM) comment: "00=rarely, 01=common".
             0 => self.note("header version 0 (rare per vgmstream)"),
             _ => return Err(AwcError::UnsupportedVersion { version, flags }),
         }
         if flags >> 8 != 0xFF {
-            // [VGM] rejects banks whose flags high byte is not 0xFF.
+            // (VGM) rejects banks whose flags high byte is not 0xFF.
             self.note(format!("flags 0x{flags:04X}: high byte is not 0xFF"));
         }
         if flags & FLAG_ENCRYPTED != 0 {
@@ -387,8 +387,8 @@ impl AwcBank {
         }
 
         // Sources disagree on what signals the chunk index array:
-        // [VGM] uses flag bit 0x0001 (high byte is always 0xFF), [FORMAT]
-        // says "high byte 0xFF". Try the [VGM] reading first, validate the
+        // (VGM) uses flag bit 0x0001 (high byte is always 0xFF), (FORMAT)
+        // says "high byte 0xFF". Try the (VGM) reading first, validate the
         // result, and fall back to the other reading, then to a scan.
         let by_bit = flags & FLAG_CHUNK_INDICES != 0;
         let by_high_byte = flags >> 8 == 0xFF;
@@ -404,7 +404,7 @@ impl AwcBank {
                 self.entries = entries;
             }
             // The contradicting reading is only trusted when its tables end
-            // exactly at the declared header size ([VGM]: "after stream
+            // exactly at the declared header size ((VGM): "after stream
             // id+tags"), so random data cannot pass as a valid table.
             Err(first) => {
                 match parse_table(&r, count, header_size, !by_bit).and_then(|(entries, end)| {
@@ -613,7 +613,7 @@ impl AwcBank {
                 notes: Vec::new(),
             };
 
-            // Events of the stream table entry with this channel's id. [VGM]
+            // Events of the stream table entry with this channel's id. (VGM)
             // shows channel entries carrying their own event chunk.
             let short_id = id & 0x1FFF_FFFF;
             if let Some(ci) = self
@@ -630,7 +630,7 @@ impl AwcBank {
             }
 
             if entry.id != 0 {
-                // [VGM]: the music entry has id 0 in GTA V era banks.
+                // (VGM): the music entry has id 0 in GTA V era banks.
                 info.note(format!(
                     "music header owned by stream id 0x{:08X}, not 0 as in vgmstream",
                     entry.id
@@ -665,7 +665,7 @@ impl AwcBank {
                         info.note("could not probe block 0; assuming stereo");
                     }
                 }
-                // [FORMAT] section 3: interleaved sample count.
+                // (FORMAT) section 3: interleaved sample count.
                 info.sample_count = u64::from(raw_samples) / u64::from(info.channels.max(1));
                 if sample_rate != 48_000 {
                     info.note(format!(
@@ -689,7 +689,7 @@ impl AwcBank {
 
     fn build_sfx(&mut self, ei: usize, entry: &RawStream) -> Result<()> {
         let data = Arc::clone(&self.data);
-        // [VGM] (GTA V layout): 0xFA header: u32 samples @0, u16 rate @8,
+        // (VGM) (GTA V layout): 0xFA header: u32 samples @0, u16 rate @8,
         // s16 headroom @0xA, u8 codec @0x13. 0x76 (Vorbis): codec @0x1C.
         let (hdr, codec_at) = match entry.chunk(tag::SFX_HEADER) {
             Some(c) => (c, 0x13),
@@ -797,7 +797,7 @@ impl AwcBank {
     /// Extract the Opus packets of a stream, in order.
     ///
     /// Music streams: every 0x800-byte unit of the channel in every block is
-    /// read as `u16 length | packet` records until a zero length ([FORMAT]
+    /// read as `u16 length | packet` records until a zero length ((FORMAT)
     /// section 4). A malformed block 0 is an error; a malformed later block
     /// (typically a truncated bank) ends extraction with a warning.
     ///
@@ -1024,7 +1024,7 @@ fn decode_chunk(v: u64) -> Chunk {
     }
 }
 
-/// [FORMAT] section 2 heuristic: scan the header (4-byte aligned) for chunk
+/// (FORMAT) section 2 heuristic: scan the header (4-byte aligned) for chunk
 /// entries with a known music tag and an offset past the header.
 fn scan_chunks(r: &Reader<'_>, header_size: usize) -> Vec<RawStream> {
     let mut chunks: Vec<Chunk> = Vec::new();
@@ -1104,7 +1104,7 @@ fn block_offset(g: &MusicGroup, b: usize) -> Option<usize> {
     b.checked_mul(g.block_size)?.checked_add(g.data.offset)
 }
 
-/// Parse block `b` of a music group ([FORMAT] section 4).
+/// Parse block `b` of a music group ((FORMAT) section 4).
 fn parse_block(data: &[u8], g: &MusicGroup, b: usize) -> std::result::Result<BlockInfo, String> {
     let offset = block_offset(g, b).ok_or("block offset overflows")?;
     let data_end = g.data.offset + available(data, g.data);
