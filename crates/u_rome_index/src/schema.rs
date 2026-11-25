@@ -106,10 +106,12 @@ pub fn migrate(conn: &mut Connection) -> Result<()> {
     }
     for (from, sql) in MIGRATIONS.iter().enumerate().skip(found as usize) {
         let to = from as i64 + 1;
+        let tx = crate::write_tx(conn).ctx_with(|| format!("starting migration {from} -> {to}"))?;
+        // Another connection may have migrated while we waited for the lock.
+        if version(&tx)? >= to {
+            continue;
+        }
         log::debug!("index: migrating schema {from} -> {to}");
-        let tx = conn
-            .transaction()
-            .ctx_with(|| format!("starting migration {from} -> {to}"))?;
         tx.execute_batch(sql)
             .ctx_with(|| format!("applying migration {from} -> {to}"))?;
         // PRAGMA does not accept bound parameters; `to` is a trusted integer.

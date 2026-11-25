@@ -690,21 +690,6 @@ impl Index {
             })
             .collect())
     }
-
-    /// Query plan for a search, for diagnostics and tests.
-    #[doc(hidden)]
-    pub fn explain_search(&self, query: &str) -> Result<Vec<String>> {
-        let _ = parse_query(query)?;
-        let sql = format!(
-            "EXPLAIN QUERY PLAN {ENTRY_SELECT} WHERE e.name_id IN \
-             (SELECT rowid FROM names_fts WHERE names_fts MATCH ?1) ORDER BY e.id LIMIT 50"
-        );
-        let mut stmt = self.conn.prepare(&sql).ctx("explain")?;
-        stmt.query_map([query], |r| r.get::<_, String>(3))
-            .ctx("explain")?
-            .collect::<rusqlite::Result<Vec<_>>>()
-            .ctx("explain")
-    }
 }
 
 #[cfg(test)]

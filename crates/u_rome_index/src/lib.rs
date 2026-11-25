@@ -76,7 +76,7 @@ mod xml;
 use std::path::Path;
 use std::time::Duration;
 
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 use u_rome_core::{joaat, joaat_lower};
 
 pub use error::{IndexError, Result};
@@ -158,10 +158,7 @@ impl Index {
     ) -> Result<Registration> {
         let path = normalize_path(rel_path)?;
         let size_i = to_i64(size, "archive size")?;
-        let tx = self
-            .conn
-            .transaction()
-            .ctx_with(|| format!("registering archive {path}"))?;
+        let tx = write_tx(&mut self.conn).ctx_with(|| format!("registering archive {path}"))?;
         let existing: Option<(i64, i64, i64, i64, i64)> = tx
             .query_row(
                 "SELECT id, size, mtime, scan_state, last_offset FROM archives WHERE rel_path = ?1",
@@ -251,10 +248,7 @@ impl Index {
 
     /// Delete an archive and all its entries (e.g. the file disappeared).
     pub fn remove_archive(&mut self, archive: ArchiveId) -> Result<()> {
-        let tx = self
-            .conn
-            .transaction()
-            .ctx_with(|| format!("removing archive {}", archive.0))?;
+        let tx = write_tx(&mut self.conn).ctx_with(|| format!("removing archive {}", archive.0))?;
         tx.execute("DELETE FROM entries WHERE archive_id = ?1", [archive.0])
             .ctx_with(|| format!("removing entries of archive {}", archive.0))?;
         let n = tx
@@ -276,7 +270,7 @@ impl Index {
 
     /// Persist every name in `registry`. Returns how many were new.
     pub fn import_names(&mut self, registry: &NameRegistry) -> Result<u64> {
-        let tx = self.conn.transaction().ctx("starting name import")?;
+        let tx = write_tx(&mut self.conn).ctx("starting name import")?;
         let before = count(&tx, "SELECT COUNT(*) FROM names")?;
         for rec in registry.iter() {
             upsert_name(&tx, &rec.name, rec.listed_hash, rec.source)?;
@@ -295,10 +289,7 @@ impl Index {
         name: &str,
         source: NameSource,
     ) -> Result<NameId> {
-        let tx = self
-            .conn
-            .transaction()
-            .ctx_with(|| format!("naming entry {}", entry.0))?;
+        let tx = write_tx(&mut self.conn).ctx_with(|| format!("naming entry {}", entry.0))?;
         let id = upsert_name(&tx, name, None, source)?;
         let n = tx
             .execute(
@@ -337,7 +328,7 @@ impl Index {
     /// wins; [`Index::names_for_hash`] lists the alternatives. Explicit names
     /// are never overwritten. Safe to rerun after importing more names.
     pub fn attach_names_by_hash(&mut self) -> Result<AttachReport> {
-        let tx = self.conn.transaction().ctx("starting name attach")?;
+        let tx = write_tx(&mut self.conn).ctx("starting name attach")?;
         let run = |column: &str, m: NameMatch| -> Result<u64> {
             let sql = format!(
                 "UPDATE entries SET \
@@ -369,6 +360,16 @@ impl Index {
             .execute_batch("INSERT INTO names_fts(names_fts) VALUES ('optimize'); PRAGMA optimize;")
             .ctx("optimizing index")
     }
+}
+
+/// Start a write transaction with `BEGIN IMMEDIATE`.
+///
+/// A deferred transaction that reads first and writes later cannot wait for
+/// another connection's write lock in WAL mode: SQLite fails the upgrade with
+/// `SQLITE_BUSY_SNAPSHOT` without calling the busy handler. Taking the write
+/// lock up front makes concurrent writers wait on `busy_timeout` instead.
+pub(crate) fn write_tx(conn: &mut Connection) -> rusqlite::Result<Transaction<'_>> {
+    conn.transaction_with_behavior(TransactionBehavior::Immediate)
 }
 
 /// Insert a name or return the existing id; records an unverified listed hash.
