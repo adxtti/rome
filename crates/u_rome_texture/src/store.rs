@@ -630,7 +630,10 @@ impl TextureStore {
             let next = starts.get(starts.partition_point(|&s| s <= v)).copied();
             let mut info = self.build_info(i, hash, d, next);
             if self.provisional {
-                info.provisional = true;
+                info.note(
+                    true,
+                    "store-level fields are provisional (see TextureStore::notes)".into(),
+                );
             }
             textures.push(info);
         }

@@ -1,3 +1,7 @@
+// Portions adapted from bcpack-rs by Ahmet Dedeler (https://github.com/Ahmet-Dedeler, https://ahmetdedeler.com)
+// Source: https://github.com/Ahmet-Dedeler/bcpack-rs
+// SPDX-License-Identifier: MIT OR Apache-2.0
+// If you copy, vendor or port this file, keep this header and credit bcpack-rs in your README.
 //! AMD Gfx10 (RDNA2) non-XOR swizzle patterns, tiling, detiling and mip chain layout.
 //!
 //! Adapted from bcpack-rs `src/ttpf.rs` (Ahmet Dedeler,
