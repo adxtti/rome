@@ -1,0 +1,119 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)build and release, e.g. v0.1.0
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  windows:
+    name: Windows ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - run: rustup toolchain install
+      - run: cargo build --release --locked --target ${{ matrix.target }} -p u_rome_studio -p u_rome_cli
+      - name: Package
+        shell: pwsh
+        run: |
+          $stage = "stage"
+          New-Item -ItemType Directory $stage | Out-Null
+          Copy-Item target/${{ matrix.target }}/release/u_rome_studio.exe $stage/
+          Copy-Item target/${{ matrix.target }}/release/rome.exe $stage/
+          Copy-Item LICENSE-MIT, LICENSE-APACHE $stage/
+          New-Item -ItemType Directory dist | Out-Null
+          Compress-Archive -Path "$stage/*" -DestinationPath "dist/u_rome-$env:TAG-windows-${{ matrix.arch }}.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-windows-${{ matrix.arch }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  macos:
+    name: macOS universal
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+      - run: rustup toolchain install
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - run: cargo build --release --locked --target aarch64-apple-darwin -p u_rome_studio -p u_rome_cli
+      - run: cargo build --release --locked --target x86_64-apple-darwin -p u_rome_studio -p u_rome_cli
+      - name: Package
+        run: |
+          set -euo pipefail
+          mkdir -p stage dist
+          for bin in u_rome_studio rome; do
+            lipo -create \
+              "target/aarch64-apple-darwin/release/$bin" \
+              "target/x86_64-apple-darwin/release/$bin" \
+              -output "stage/$bin"
+          done
+          cp LICENSE-MIT LICENSE-APACHE stage/
+          (cd stage && zip -X -q "../dist/u_rome-${TAG}-macos-universal.zip" ./*)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-macos-universal
+          path: dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    name: GitHub Release
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum ./*.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.TAG }}
+          name: u_rome ${{ env.TAG }}
+          generate_release_notes: true
+          prerelease: ${{ contains(env.TAG, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
