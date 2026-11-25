@@ -20,6 +20,16 @@ die() {
     exit 1
 }
 
+# C dependencies (bundled SQLite) need llvm-lib and clang-cl, which Apple's
+# toolchain lacks; prefer Homebrew's LLVM when it is installed.
+for llvm in /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin; do
+    if [ -x "$llvm/llvm-lib" ]; then
+        PATH="$llvm:$PATH"
+        break
+    fi
+done
+command -v llvm-lib >/dev/null || die "llvm-lib not found (brew install llvm)"
+
 command -v cargo >/dev/null || die "cargo not found (install rustup)"
 cargo xwin --version >/dev/null 2>&1 || die "cargo-xwin not found: cargo install --locked cargo-xwin"
 command -v zip >/dev/null || die "zip not found"
