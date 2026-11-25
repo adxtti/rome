@@ -119,8 +119,12 @@ pub fn default_index_path() -> PathBuf {
 }
 
 /// `%LOCALAPPDATA%\u_rome` on Windows, `~/Library/Application Support/u_rome`
-/// on macOS, `$XDG_DATA_HOME/u_rome` elsewhere.
+/// on macOS, `$XDG_DATA_HOME/u_rome` elsewhere. `U_ROME_DATA_DIR` overrides
+/// it (portable installs, tests).
 pub fn data_dir() -> PathBuf {
+    if let Some(p) = std::env::var_os("U_ROME_DATA_DIR").filter(|p| !p.is_empty()) {
+        return PathBuf::from(p);
+    }
     #[cfg(windows)]
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
     #[cfg(target_os = "macos")]

@@ -12,14 +12,10 @@ use std::path::PathBuf;
 /// Environment variable that overrides [`data_dir`].
 pub const DATA_DIR_ENV: &str = "U_ROME_DATA_DIR";
 
-/// Root data folder.
+/// Root data folder. Shared with the CLI through `u_rome_install`, which
+/// also honours [`DATA_DIR_ENV`].
 pub fn data_dir() -> PathBuf {
-    if let Some(p) = std::env::var_os(DATA_DIR_ENV).filter(|p| !p.is_empty()) {
-        return PathBuf::from(p);
-    }
-    dirs::data_local_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("u_rome")
+    u_rome_install::data_dir()
 }
 
 /// Session log files.
