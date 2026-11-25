@@ -100,3 +100,17 @@ pub enum AwcError {
 
 /// Crate result alias.
 pub type Result<T> = std::result::Result<T, AwcError>;
+
+/// Attach context to a [`ByteError`].
+pub(crate) trait ReadCtx<T> {
+    fn ctx(self, context: impl FnOnce() -> String) -> Result<T>;
+}
+
+impl<T> ReadCtx<T> for std::result::Result<T, ByteError> {
+    fn ctx(self, context: impl FnOnce() -> String) -> Result<T> {
+        self.map_err(|source| AwcError::Read {
+            context: context(),
+            source,
+        })
+    }
+}
