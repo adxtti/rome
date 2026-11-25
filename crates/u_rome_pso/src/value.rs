@@ -508,26 +508,6 @@ impl<'a> Decoder<'a> {
             })?;
         let b = block;
         Ok(match m.type_code {
-            tc::BOOL => Value::Bool(self.u8(b, abs)? != 0),
-            tc::S8 => Value::Int(i64::from(self.u8(b, abs)? as i8)),
-            tc::U8 => Value::UInt(u64::from(self.u8(b, abs)?)),
-            tc::S16 => Value::Int(i64::from(self.u16(b, abs)? as i16)),
-            tc::U16 => Value::UInt(u64::from(self.u16(b, abs)?)),
-            tc::S32 => Value::Int(i64::from(self.u32(b, abs)? as i32)),
-            tc::U32 => Value::UInt(u64::from(self.u32(b, abs)?)),
-            tc::U64 | tc::U64_ALT => Value::UInt(self.u64(b, abs)?),
-            tc::F16 => Value::Float(f16_to_f32(self.u16(b, abs)?)),
-            tc::F32 => Value::Float(self.f32(b, abs)?),
-            tc::VEC3 | tc::VEC3_PADDED => self.floats(b, abs, 3)?,
-            tc::VEC4 | tc::VEC4_ALT => self.floats(b, abs, 4)?,
-            tc::HASH => Value::Hash(Hash32(self.u32(b, abs)?)),
-            tc::HASH64 => Value::Hash64(self.u64(b, abs)?),
-            tc::WIDE if m.subtype != 0x0f => Value::UInt(self.u64(b, abs)?),
-            tc::ENUM8 => Value::Enum {
-                enum_hash: Hash32(m.extra),
-                value: i64::from(self.u8(b, abs)?),
-            },
-            tc::BITSET => Value::UInt(self.u64(b, abs)?),
             tc::STRUCT => {
                 let def = self.struct_def(m.extra, abs, "embedded struct member")?;
                 self.decode_struct(def, b, abs, depth)?
@@ -563,6 +543,42 @@ impl<'a> Decoder<'a> {
                 self.ref_array(owner, index, count, reference, abs, depth)?
             }
             tc::INLINE_ARRAY => self.array(owner, index, m.extra as usize, b, abs, depth)?,
+            _ => self.leaf(owner, index, b, abs)?,
+        })
+    }
+
+    /// Non-recursive member types. Kept out of `member` so the recursive
+    /// frame stays small (deep pointer chains otherwise overflow small thread
+    /// stacks in debug builds).
+    #[inline(never)]
+    fn leaf(&self, owner: &StructDef, index: usize, b: &Block, abs: usize) -> Result<Value> {
+        let Some(m) = owner.members.get(index) else {
+            return Ok(Value::Opaque {
+                type_code: 0,
+                bytes: Vec::new(),
+            });
+        };
+        Ok(match m.type_code {
+            tc::BOOL => Value::Bool(self.u8(b, abs)? != 0),
+            tc::S8 => Value::Int(i64::from(self.u8(b, abs)? as i8)),
+            tc::U8 => Value::UInt(u64::from(self.u8(b, abs)?)),
+            tc::S16 => Value::Int(i64::from(self.u16(b, abs)? as i16)),
+            tc::U16 => Value::UInt(u64::from(self.u16(b, abs)?)),
+            tc::S32 => Value::Int(i64::from(self.u32(b, abs)? as i32)),
+            tc::U32 => Value::UInt(u64::from(self.u32(b, abs)?)),
+            tc::U64 | tc::U64_ALT => Value::UInt(self.u64(b, abs)?),
+            tc::F16 => Value::Float(f16_to_f32(self.u16(b, abs)?)),
+            tc::F32 => Value::Float(self.f32(b, abs)?),
+            tc::VEC3 | tc::VEC3_PADDED => self.floats(b, abs, 3)?,
+            tc::VEC4 | tc::VEC4_ALT => self.floats(b, abs, 4)?,
+            tc::HASH => Value::Hash(Hash32(self.u32(b, abs)?)),
+            tc::HASH64 => Value::Hash64(self.u64(b, abs)?),
+            tc::WIDE if m.subtype != 0x0f => Value::UInt(self.u64(b, abs)?),
+            tc::ENUM8 => Value::Enum {
+                enum_hash: Hash32(m.extra),
+                value: i64::from(self.u8(b, abs)?),
+            },
+            tc::BITSET => Value::UInt(self.u64(b, abs)?),
             tc::STRING => self.string(b, abs)?,
             code => {
                 let span = m.size.unwrap_or_else(|| owner.member_span(index)) as usize;
