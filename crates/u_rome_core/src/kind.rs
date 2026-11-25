@@ -56,7 +56,8 @@ pub fn detect(data: &[u8]) -> AssetKind {
         AssetKind::TextureTable
     } else if m(b"PSIN") {
         AssetKind::Pso
-    } else if m(b"0DRP") {
+    } else if m(b"0DRP") || data.get(0x10..0x14) == Some(b"0DRP".as_slice()) {
+        // GTA6-Asset-Info places the 0DRP tag at +0x10 in meta resources.
         AssetKind::MetaResource
     } else if m(b"ADAT") {
         AssetKind::Audio
@@ -81,6 +82,9 @@ mod tests {
         assert_eq!(detect(b"ADAT\x01\x00"), AssetKind::Audio);
         assert_eq!(detect(b"<?xml version"), AssetKind::Xml);
         assert_eq!(detect(b"zz"), AssetKind::Unknown);
+        let mut meta = vec![0u8; 0x10];
+        meta.extend_from_slice(b"0DRP\x7a\0\0\0");
+        assert_eq!(detect(&meta), AssetKind::MetaResource);
         assert_eq!(detect(b""), AssetKind::Unknown);
     }
 }
