@@ -18,15 +18,15 @@
 pub mod backend;
 pub mod crash;
 pub mod diagnostics;
-// pub mod hex;
+pub mod hex;
 pub mod jobs;
 pub mod logging;
 pub mod paths;
 // pub mod preview;
-// pub mod renderer;
+pub mod renderer;
 // pub mod run;
-// pub mod search;
-// pub mod settings;
+pub mod search;
+pub mod settings;
 // pub mod ui;
 pub mod util;
 
