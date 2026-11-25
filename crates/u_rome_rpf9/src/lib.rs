@@ -131,7 +131,10 @@ pub struct ScanOptions {
     pub threads: Option<usize>,
     /// Scan inside decoded entries that contain nested RPF9 archives.
     pub recurse_nested: bool,
-    /// Decoded-size cap per entry (also caps the buffer used for nested scans).
+    /// Decoded-size cap per entry. Scanning streams decoded bytes without
+    /// buffering them, except when an entry contains a nested archive: that
+    /// entry is decoded into memory (at most this many bytes, per thread) to
+    /// be scanned. Default 512 MiB.
     pub max_entry_size: u64,
 }
 
@@ -141,7 +144,7 @@ impl Default for ScanOptions {
             hash: false,
             threads: None,
             recurse_nested: true,
-            max_entry_size: 1 << 30,
+            max_entry_size: 512 << 20,
         }
     }
 }

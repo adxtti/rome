@@ -137,7 +137,9 @@ pub(crate) fn probe_at(
 }
 
 fn stored(rest: &[u8], len: u64, provisional: bool, sink: &mut dyn FnMut(&[u8])) -> Hit {
-    let slice = rest.get(..len as usize).unwrap_or(rest);
+    let slice = rest
+        .get(..usize::try_from(len).unwrap_or(usize::MAX))
+        .unwrap_or(rest);
     sink(slice);
     Hit {
         stored_len: slice.len() as u64,
