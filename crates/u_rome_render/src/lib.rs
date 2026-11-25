@@ -7,5 +7,6 @@
 //! [`camera`] and [`prep`] and is unit-tested without a GPU.
 
 pub mod camera;
+pub mod prep;
 
 pub use camera::{Aabb, OrbitCamera, Ray};
