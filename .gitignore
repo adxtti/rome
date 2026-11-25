@@ -41,3 +41,6 @@ target/
 # Local agent instructions: never commit
 CLAUDE.md
 .claude/
+
+# Packaged builds
+dist/
