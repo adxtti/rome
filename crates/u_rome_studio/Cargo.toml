@@ -13,7 +13,6 @@ path = "src/main.rs"
 
 [dependencies]
 u_rome_core.workspace = true
-anyhow.workspace = true
 thiserror.workspace = true
 log.workspace = true
 env_logger = "0.11.12"
@@ -29,4 +28,5 @@ serde = { version = "1.0.229", features = ["derive"] }
 workspace = true
 
 [dev-dependencies]
+ron = "0.12.3"
 tempfile = "3.27.0"

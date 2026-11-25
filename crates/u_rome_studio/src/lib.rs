@@ -14,7 +14,7 @@
 //! - [`preview`]: the `Previewer` registry decoders plug into.
 //! - [`app`] and [`ui`]: the egui application.
 
-// pub mod app;
+pub mod app;
 pub mod backend;
 pub mod crash;
 pub mod diagnostics;
@@ -22,15 +22,15 @@ pub mod hex;
 pub mod jobs;
 pub mod logging;
 pub mod paths;
-// pub mod preview;
+pub mod preview;
 pub mod renderer;
-// pub mod run;
+pub mod run;
 pub mod search;
 pub mod settings;
-// pub mod ui;
+pub mod ui;
 pub mod util;
 
-// pub use run::run;
+pub use run::run;
 
 /// Application name used for window titles and storage keys.
 pub const APP_NAME: &str = "ROME Studio";

@@ -3198,7 +3198,6 @@ dependencies = [
 name = "u_rome_studio"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "dirs",
  "eframe",
  "egui_dock",
@@ -3206,6 +3205,7 @@ dependencies = [
  "env_logger",
  "log",
  "rfd",
+ "ron",
  "serde",
  "serde_json",
  "tempfile",
