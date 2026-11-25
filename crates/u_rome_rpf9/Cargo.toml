@@ -11,6 +11,10 @@ publish.workspace = true
 u_rome_core.workspace = true
 thiserror.workspace = true
 log.workspace = true
+flate2 = { version = "1.1.11", default-features = false, features = ["zlib-rs"] }
+blake3 = "1.8.7"
+memmap2 = "0.9.12"
+rayon = "1.12.0"
 
 [lints]
 workspace = true
