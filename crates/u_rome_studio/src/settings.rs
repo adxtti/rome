@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn index_db_default() {
         let s = Settings::default();
-        assert!(s.index_db_path().ends_with("u_rome_index.db"));
+        assert!(s.index_db_path().ends_with("index.sqlite"));
         let s = Settings {
             index_db: Some(PathBuf::from("/x/y.db")),
             ..Default::default()

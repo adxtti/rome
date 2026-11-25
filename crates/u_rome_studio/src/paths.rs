@@ -42,7 +42,8 @@ pub fn state_dir() -> PathBuf {
     data_dir().join("studio_state")
 }
 
-/// Default location of the asset index database.
+/// Default location of the asset index database. Matches
+/// `u_rome_install::default_index_path()` so Studio and the CLI share one index.
 pub fn default_index_db() -> PathBuf {
-    data_dir().join("index").join("u_rome_index.db")
+    data_dir().join("index.sqlite")
 }

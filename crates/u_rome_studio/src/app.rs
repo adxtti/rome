@@ -630,7 +630,7 @@ impl StudioApp {
                             if ui.button("Change...").clicked()
                                 && let Some(p) = rfd::FileDialog::new()
                                     .set_title("Index database location")
-                                    .set_file_name("u_rome_index.db")
+                                    .set_file_name("index.sqlite")
                                     .save_file()
                             {
                                 s.index_db = Some(p);
