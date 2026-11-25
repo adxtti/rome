@@ -1243,4 +1243,4 @@ pub fn archetype_hash(model_name: &str) -> Hash32 {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
