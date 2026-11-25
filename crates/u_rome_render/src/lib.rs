@@ -8,9 +8,18 @@
 
 pub mod camera;
 pub mod error;
+mod gpu;
 pub mod image_view;
+pub mod model_view;
 pub mod prep;
 
 pub use camera::{Aabb, OrbitCamera, Ray};
 pub use error::RenderError;
+pub use gpu::Capabilities;
 pub use image_view::{Channels, ImageView};
+pub use model_view::{ModelView, ShadingMode};
+pub use prep::SkeletonSource;
+
+/// Re-exported so hosts use exactly the egui/wgpu versions this crate was built against.
+pub use egui;
+pub use egui_wgpu;
