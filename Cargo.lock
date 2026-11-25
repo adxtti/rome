@@ -2710,7 +2710,16 @@ dependencies = [
  "clap",
  "env_logger",
  "log",
+ "serde_json",
+ "u_rome_audio",
  "u_rome_core",
+ "u_rome_index",
+ "u_rome_install",
+ "u_rome_map",
+ "u_rome_model",
+ "u_rome_pso",
+ "u_rome_testdata",
+ "u_rome_texture",
 ]
 
 [[package]]

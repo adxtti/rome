@@ -13,10 +13,21 @@ path = "src/main.rs"
 
 [dependencies]
 u_rome_core.workspace = true
+u_rome_install.workspace = true
+u_rome_index.workspace = true
+u_rome_texture.workspace = true
+u_rome_model.workspace = true
+u_rome_audio.workspace = true
+u_rome_pso.workspace = true
+u_rome_map.workspace = true
 anyhow.workspace = true
 log.workspace = true
 clap = { version = "4.6.10", features = ["derive"] }
 env_logger = "0.11.12"
+serde_json = "1.0.154"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+u_rome_testdata.workspace = true

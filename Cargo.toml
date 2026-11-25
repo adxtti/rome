@@ -16,6 +16,11 @@ u_rome_index = { path = "crates/u_rome_index" }
 u_rome_install = { path = "crates/u_rome_install" }
 u_rome_pso = { path = "crates/u_rome_pso" }
 u_rome_testdata = { path = "crates/u_rome_testdata" }
+u_rome_texture = { path = "crates/u_rome_texture" }
+u_rome_model = { path = "crates/u_rome_model" }
+u_rome_audio = { path = "crates/u_rome_audio" }
+u_rome_map = { path = "crates/u_rome_map" }
+u_rome_render = { path = "crates/u_rome_render" }
 
 thiserror = "2"
 anyhow = "1"
