@@ -2642,6 +2642,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "u_rome_install"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "thiserror 2.0.21",
+ "u_rome_core",
+ "u_rome_index",
+ "u_rome_rpf9",
+ "u_rome_testdata",
+]
+
+[[package]]
 name = "u_rome_map"
 version = "0.1.0"
 dependencies = [

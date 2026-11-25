@@ -11,6 +11,11 @@ publish = false
 
 [workspace.dependencies]
 u_rome_core = { path = "crates/u_rome_core" }
+u_rome_rpf9 = { path = "crates/u_rome_rpf9" }
+u_rome_index = { path = "crates/u_rome_index" }
+u_rome_install = { path = "crates/u_rome_install" }
+u_rome_pso = { path = "crates/u_rome_pso" }
+u_rome_testdata = { path = "crates/u_rome_testdata" }
 
 thiserror = "2"
 anyhow = "1"
