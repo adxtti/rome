@@ -18,4 +18,4 @@ png = "0.18.1"
 workspace = true
 
 [dev-dependencies]
-gltf = { version = "1.4.1", default-features = false, features = ["utils"] }
+gltf = { version = "1.4.1", default-features = false, features = ["extras", "names", "utils"] }
