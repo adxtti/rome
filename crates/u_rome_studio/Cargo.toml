@@ -14,10 +14,19 @@ path = "src/main.rs"
 [dependencies]
 u_rome_core.workspace = true
 anyhow.workspace = true
+thiserror.workspace = true
 log.workspace = true
 env_logger = "0.11.12"
-eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "wgpu", "glow", "persistence"] }
-egui_dock = "0.22.0"
+eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "wgpu", "glow", "persistence", "clipboard"] }
+egui_dock = { version = "0.22.0", features = ["serde"] }
+rfd = "0.18.0"
+dirs = "7.0.0"
+serde_json = "1.0.154"
+egui_extras = "0.37.0"
+serde = { version = "1.0.229", features = ["derive"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"
