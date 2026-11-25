@@ -11,6 +11,8 @@ publish.workspace = true
 u_rome_core.workspace = true
 thiserror.workspace = true
 log.workspace = true
+rusqlite = { version = "0.43.0", features = ["bundled"] }
+quick-xml = "0.42.0"
 
 [lints]
 workspace = true
