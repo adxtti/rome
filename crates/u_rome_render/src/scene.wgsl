@@ -8,9 +8,8 @@ struct Frame {
     // xyz: direction towards the key light (world space).
     light_dir: vec4<f32>,
     wire_color: vec4<f32>,
-    // x: shading mode, y: has base colour texture (set per draw is not
-    // possible without per-mesh uniforms; the texture is always bound and
-    // defaults to light grey).
+    // x: shading mode; y, z, w unused. The base colour texture is always
+    // bound (a light grey 1x1 texture when the material has none).
     params: vec4<u32>,
 };
 

@@ -67,10 +67,14 @@ pub struct Capabilities {
 
 impl Capabilities {
     pub(crate) fn detect(rs: &egui_wgpu::RenderState) -> Self {
-        let info = rs.adapter.get_info();
-        let limits = rs.device.limits();
-        let color = rs.adapter.get_texture_format_features(COLOR_FORMAT);
-        let depth = rs.adapter.get_texture_format_features(DEPTH_FORMAT);
+        Self::from_device(&rs.adapter, &rs.device)
+    }
+
+    pub(crate) fn from_device(adapter: &wgpu::Adapter, device: &wgpu::Device) -> Self {
+        let info = adapter.get_info();
+        let limits = device.limits();
+        let color = adapter.get_texture_format_features(COLOR_FORMAT);
+        let depth = adapter.get_texture_format_features(DEPTH_FORMAT);
         let msaa_ok = color.flags.sample_count_supported(4)
             && depth.flags.sample_count_supported(4)
             && color
@@ -81,8 +85,7 @@ impl Capabilities {
             backend: info.backend,
             adapter_name: info.name,
             samples: if msaa_ok && !msaa_disabled { 4 } else { 1 },
-            native_wireframe: rs
-                .device
+            native_wireframe: device
                 .features()
                 .contains(wgpu::Features::POLYGON_MODE_LINE),
             max_texture_dim: limits.max_texture_dimension_2d.max(1),
@@ -531,6 +534,8 @@ impl GpuMesh {
 }
 
 pub(crate) struct Targets {
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub color: wgpu::Texture,
     pub color_view: wgpu::TextureView,
     msaa_view: Option<wgpu::TextureView>,
     depth_view: wgpu::TextureView,
@@ -545,41 +550,47 @@ impl Targets {
             depth_or_array_layers: 1,
         };
         let tex = |label, format, samples, usage| {
-            device
-                .create_texture(&wgpu::TextureDescriptor {
-                    label: Some(label),
-                    size: extent,
-                    mip_level_count: 1,
-                    sample_count: samples,
-                    dimension: wgpu::TextureDimension::D2,
-                    format,
-                    usage,
-                    view_formats: &[],
-                })
-                .create_view(&Default::default())
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: extent,
+                mip_level_count: 1,
+                sample_count: samples,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage,
+                view_formats: &[],
+            })
         };
-        scoped(device, "creating viewport targets", || Self {
-            color_view: tex(
+        scoped(device, "creating viewport targets", || {
+            let color = tex(
                 "u_rome_render viewport colour",
                 COLOR_FORMAT,
                 1,
-                wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            ),
-            msaa_view: (samples > 1).then(|| {
-                tex(
-                    "u_rome_render viewport msaa",
-                    COLOR_FORMAT,
+                wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_SRC,
+            );
+            Self {
+                color_view: color.create_view(&Default::default()),
+                color,
+                msaa_view: (samples > 1).then(|| {
+                    tex(
+                        "u_rome_render viewport msaa",
+                        COLOR_FORMAT,
+                        samples,
+                        wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    )
+                    .create_view(&Default::default())
+                }),
+                depth_view: tex(
+                    "u_rome_render viewport depth",
+                    DEPTH_FORMAT,
                     samples,
                     wgpu::TextureUsages::RENDER_ATTACHMENT,
                 )
-            }),
-            depth_view: tex(
-                "u_rome_render viewport depth",
-                DEPTH_FORMAT,
-                samples,
-                wgpu::TextureUsages::RENDER_ATTACHMENT,
-            ),
-            size,
+                .create_view(&Default::default()),
+                size,
+            }
         })
     }
 }

@@ -9,6 +9,8 @@
 pub mod camera;
 pub mod error;
 mod gpu;
+#[cfg(test)]
+mod gpu_smoke;
 pub mod image_view;
 pub mod model_view;
 pub mod prep;
