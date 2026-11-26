@@ -7,7 +7,7 @@
 //! [`app::StudioApp::new`] (see `providers()` in `app.rs`).
 //!
 //! Layout:
-//! - [`run`]: process entry (logging, panic hook, renderer selection with fallback).
+//! - [`run`](mod@run): process entry (logging, panic hook, renderer selection with fallback).
 //! - [`backend`]: data access trait, byte sources, mock install.
 //! - [`jobs`]: background worker pool with progress and cancellation.
 //! - [`search`], [`hex`]: pure, unit-tested logic behind the Search and Hex panels.
