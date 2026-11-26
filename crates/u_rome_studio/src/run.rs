@@ -46,7 +46,8 @@ fn native_options(kind: RendererKind) -> eframe::NativeOptions {
             .with_title(format!("{APP_NAME} {VERSION}"))
             .with_app_id("u_rome_studio")
             .with_inner_size([1440.0, 900.0])
-            .with_min_inner_size([720.0, 420.0]),
+            .with_min_inner_size([720.0, 420.0])
+            .with_icon(crate::brand::window_icon().unwrap_or_default()),
         renderer: kind.to_eframe(),
         wgpu_options: renderer::wgpu_configuration(),
         persistence_path: Some(paths::state_dir()),

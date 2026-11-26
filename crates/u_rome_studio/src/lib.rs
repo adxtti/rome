@@ -16,6 +16,7 @@
 
 pub mod app;
 pub mod backend;
+pub mod brand;
 pub mod crash;
 pub mod decoders;
 pub mod diagnostics;

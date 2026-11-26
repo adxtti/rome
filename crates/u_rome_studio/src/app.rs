@@ -474,6 +474,14 @@ impl StudioApp {
 
     fn menu_bar(&mut self, ui: &mut egui::Ui) {
         egui::MenuBar::new().ui(ui, |ui| {
+            if crate::brand::wordmark(ui, 14.0)
+                .on_hover_text("About ROME Studio")
+                .interact(egui::Sense::click())
+                .clicked()
+            {
+                self.studio.show_about = true;
+            }
+            ui.add_space(6.0);
             ui.menu_button("File", |ui| {
                 if ui
                     .add(egui::Button::new("Open game folder...").shortcut_text(shortcut(ui, "O")))
@@ -718,6 +726,8 @@ impl StudioApp {
             .resizable(false)
             .collapsible(false)
             .show(ctx, |ui| {
+                crate::brand::wordmark(ui, 56.0);
+                ui.add_space(4.0);
                 ui.heading(format!("{} {}", crate::APP_NAME, crate::VERSION));
                 ui.label("Asset viewer for your own GTA VI install (u_rome, unofficial ROME).");
                 ui.label(
@@ -736,8 +746,8 @@ impl StudioApp {
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new(
-                        "Demo data: the archive decoders are not integrated yet, so Studio shows a \
-                         synthetic install. Nothing shown here comes from game files.",
+                        "Demo data: no game folder is open, so Studio shows a synthetic install. \
+                         Use File > Open game folder to scan your own copy.",
                     )
                     .color(ui.visuals().warn_fg_color)
                     .small(),

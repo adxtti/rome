@@ -193,6 +193,8 @@ pub fn show(studio: &mut Studio, ui: &mut egui::Ui) {
                 ui.spinner();
                 ui.label("Loading install...");
             } else {
+                crate::brand::wordmark(ui, 40.0);
+                ui.add_space(8.0);
                 ui.label("No install loaded.");
                 ui.label(
                     egui::RichText::new("File > Open game folder, or File > Load demo data.")
